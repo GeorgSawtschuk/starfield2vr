@@ -15,6 +15,7 @@
       "cacheVariables": {
         "CMAKE_CXX_FLAGS": "/EHsc /fp:contract /fp:except-  /W4 /Zc:__cplusplus /D_ITERATOR_DEBUG_LEVEL=0 $env{COMPILER_FLAGS} $env{WINDOWS_FLAGS} $penv{CXXFLAGS}",
         "CMAKE_SHARED_LINKER_FLAGS": "$env{COMMONLIBSF_LINKER} $penv{SHARED_LINKER_FLAGS}",
+        "CMAKE_POLICY_VERSION_MINIMUM": "3.5",
         "USE_STARFIELD_SDK_LITE": "ON",
         "SFVR_EXPERIMENTAL": "OFF",
         "SIGNATURE_SCAN": "ON",
