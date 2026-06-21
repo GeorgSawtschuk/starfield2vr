@@ -534,3 +534,6 @@ FodyWeavers.xsd
 build/
 
 artifact/*
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json

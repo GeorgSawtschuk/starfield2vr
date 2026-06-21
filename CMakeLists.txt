@@ -59,6 +59,7 @@ target_compile_definitions(common INTERFACE DISABLE_WINDOW_SIZE_FIXES)
 target_compile_definitions(common INTERFACE HOOK_XINPUT)
 target_compile_definitions(common INTERFACE HOOK_DX12_FIRST)
 target_compile_definitions(common INTERFACE GLM_ENABLE_EXPERIMENTAL)
+target_compile_definitions(common INTERFACE $<$<CONFIG:RelWithDebInfo>:ENABLE_FILE_LOGGING>)
 
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 

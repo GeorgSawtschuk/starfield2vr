@@ -115,6 +115,9 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
         if (desc.Width != desc2.Width || desc.Height != desc2.Height || desc.Format != desc2.Format) {
             spdlog::info("Resource size mismatch {} {} {} {} {} {} {} {}", fmt::ptr(source), desc.Width, desc.Height, desc.Format, fmt::ptr(pastBuffer[0].Get()), desc2.Width,
                          desc2.Height, desc2.Format);
+            if (desc.Format == desc2.Format && desc.Width <= desc2.Width && desc.Height <= desc2.Height) {
+                return false;
+            }
             pastBuffer[0].Reset();
             pastBuffer[1].Reset();
             pastBuffer[2].Reset();

@@ -143,7 +143,7 @@ void CreationEngineCameraManager::onNiAVObjectUpdateWorld(RE::NiAVObject *obj, R
     using func_t = decltype(onNiAVObjectUpdateWorld);
     static auto original_func = instance->m_onNiAVObjectUpdateWorldHook->get_original<func_t>();
     static auto vr = VR::get();
-    if (vr->is_hmd_active() && !ModSettings::showFlatScreenDisplay()) {
+    if (vr->is_hmd_active() && !GameFlow::isShowingMenu()) {
         auto camera_root = getCameraRootNode();
         if (obj->parent && camera_root && camera_root == obj->parent) {
             original_func(obj, a_data);
@@ -168,6 +168,7 @@ CreationEngineCameraManager::onScaleformSetViewPortInternal(uintptr_t *thisMovie
 
     static auto vr = VR::get();
     auto cc = reinterpret_cast<RE::Scaleform::GFx::MovieImpl *>(thisMovie);
+    if (!cc || !cc->GetMovieDef()) return;
     auto file_url = cc->GetMovieDef()->GetFileURL();
     GameFlow::renderMenu(file_url);
 
@@ -280,7 +281,7 @@ void CreationEngineCameraManager::UpdateWorldCamera() {
     static auto originalRotation = worldCamera->local.rotate;
     static auto originalPosition = worldCamera->local.translate;
 
-    if (!vr->is_hmd_active() || ModConstants::cameraShake || ModSettings::showFlatScreenDisplay()) {
+    if (!vr->is_hmd_active() || ModConstants::cameraShake || GameFlow::isShowingMenu()) {
         worldCamera->local.rotate = originalRotation;
         worldCamera->local.translate = originalPosition;
         return;
@@ -321,7 +322,7 @@ void CreationEngineCameraManager::onFPSGetCameraRotation(RE::FirstPersonState *f
     static auto original_func = instance->m_onGetCameraRotationHook->get_original<decltype(onFPSGetCameraRotation)>();
     original_func(fps, quat_out);
     static auto vr = VR::get();
-    if (!vr->is_hmd_active() || ModConstants::cameraShake || ModSettings::showFlatScreenDisplay()) {
+    if (!vr->is_hmd_active() || ModConstants::cameraShake || GameFlow::isShowingMenu()) {
         yaw_offset = 0.0f;
         return;
     }
