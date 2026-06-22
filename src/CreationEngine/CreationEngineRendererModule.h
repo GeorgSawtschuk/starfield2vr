@@ -194,5 +194,6 @@ private:
     static uintptr_t onTaaPass(RE::CreationRendererPrivate::RenderPass* pPass, RE::CreationRendererPrivate::RenderGraphData* i, RE::CreationRendererPrivate::RenderPassData* i1);
     void             RenderGraphStart(RE::CreationRendererPrivate::RenderGraph* pGraph, RE::CreationRendererPrivate::RenderGraphData* pRenderGraphData, bool before);
     static bool      ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pPtr[4]);
+    void             logMemoryUsage(const char* reason);
     static uintptr_t setReflexMarkerInternal(uintptr_t rcx, uint32_t marker, uint32_t oldFrameIndex);
 };

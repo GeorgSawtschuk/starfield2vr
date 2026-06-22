@@ -14,6 +14,9 @@
 #include <mods/VR.hpp>
 #include <safetyhook/easy.hpp>
 
+#include <dxgi1_4.h>
+#include <psapi.h>
+
 #include "ModSettings.h"
 
 uintptr_t onUpdateConstantBufferViewDetour(uint8_t copyPresentToPast, uint8_t orphoProjection, uintptr_t pCameraTransforms, uintptr_t vararg1Parent, uintptr_t vararg3Parent,
@@ -113,8 +116,6 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
     if (pastBuffer[0] != nullptr) {
         D3D12_RESOURCE_DESC desc2 = pastBuffer[0]->GetDesc();
         if (desc.Width != desc2.Width || desc.Height != desc2.Height || desc.Format != desc2.Format) {
-            spdlog::info("Resource size mismatch {} {} {} {} {} {} {} {}", fmt::ptr(source), desc.Width, desc.Height, desc.Format, fmt::ptr(pastBuffer[0].Get()), desc2.Width,
-                         desc2.Height, desc2.Format);
             if (desc.Format == desc2.Format && desc.Width <= desc2.Width && desc.Height <= desc2.Height) {
                 return false;
             }
@@ -153,6 +154,54 @@ void CreationEngineRendererModule::SwapBuffer(ID3D12GraphicsCommandList* cmdList
     CopyResource(cmdList, alterFrameBuffer, originalBuffer, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 }
 
+void CreationEngineRendererModule::logMemoryUsage(const char* reason)
+{
+    auto device = g_framework->get_d3d12_hook()->get_device();
+    if (device == nullptr) {
+        return;
+    }
+
+    static ComPtr<IDXGIAdapter3> adapter;
+    if (adapter == nullptr) {
+        ComPtr<IDXGIFactory4> factory;
+        if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(factory.GetAddressOf())))) {
+            factory->EnumAdapterByLuid(device->GetAdapterLuid(), IID_PPV_ARGS(adapter.GetAddressOf()));
+        }
+    }
+
+    uint64_t vramUsedMB = 0, vramBudgetMB = 0;
+    if (adapter) {
+        DXGI_QUERY_VIDEO_MEMORY_INFO info{};
+        if (SUCCEEDED(adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))) {
+            vramUsedMB   = info.CurrentUsage / (1024 * 1024);
+            vramBudgetMB = info.Budget / (1024 * 1024);
+        }
+    }
+
+    uint64_t                    workingSetMB = 0, privateMB = 0;
+    PROCESS_MEMORY_COUNTERS_EX pmc{};
+    pmc.cb = sizeof(pmc);
+    if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc), sizeof(pmc))) {
+        workingSetMB = pmc.WorkingSetSize / (1024 * 1024);
+        privateMB    = pmc.PrivateUsage / (1024 * 1024);
+    }
+
+    size_t   pastBufferCount = 0;
+    uint64_t pastBufferBytes = 0;
+    for (auto& group : m_pastBuffer) {
+        for (auto& buf : group) {
+            if (buf) {
+                pastBufferCount++;
+                auto bufDesc = buf->GetDesc();
+                pastBufferBytes += device->GetResourceAllocationInfo(0, 1, &bufDesc).SizeInBytes;
+            }
+        }
+    }
+
+    spdlog::info("[MEM] {} | VRAM {}/{} MB | WorkingSet {} MB | Private {} MB | pastBuffers {} (~{} MB)", reason, vramUsedMB, vramBudgetMB, workingSetMB, privateMB, pastBufferCount,
+                 pastBufferBytes / (1024 * 1024));
+}
+
 void CreationEngineRendererModule::RenderGraphStart(RE::CreationRendererPrivate::RenderGraph* pGraph, RE::CreationRendererPrivate::RenderGraphData* pRenderGraphData, bool before)
 {
     if (m_startFramePass == nullptr && strcmp(pGraph->name, "CRBeginFrame") == 0) {
@@ -167,7 +216,20 @@ void CreationEngineRendererModule::RenderGraphStart(RE::CreationRendererPrivate:
     auto vr = VR::get();
     if (m_startFramePass == pGraph && before) {
         GameFlow::resetGameState();
-        ModSettings::g_internalSettings.showQuadDisplay = GameFlow::isShowingMenu();
+        bool showingMenu                                = GameFlow::isShowingMenu();
+        ModSettings::g_internalSettings.showQuadDisplay = showingMenu;
+
+        static bool prevShowingMenu = false;
+        if (showingMenu != prevShowingMenu) {
+            prevShowingMenu = showingMenu;
+            logMemoryUsage(showingMenu ? "menu/inventory opened" : "menu/inventory closed");
+        }
+        static int lastMemLogFrame = 0;
+        auto       fc              = GameFlow::renderLoopFrameCount();
+        if (fc - lastMemLogFrame >= 5 * 72) {
+            lastMemLogFrame = fc;
+            logMemoryUsage("periodic");
+        }
     } else if (!before && m_framePass == pGraph) {
         auto fc          = GameFlow::renderLoopFrameCount();
         auto context     = reinterpret_cast<RE::RenderGraphDataD3D12Context*>(pRenderGraphData->getCommandList());
@@ -224,7 +286,7 @@ void CreationEngineRendererModule::SetWindowSize(int width, int height)
         return;
     }
 
-    spdlog::info("Setting window size to {} {}", width, height);
+    spdlog::debug("Setting window size to {} {}", width, height);
     auto ce_rect = &(*m_creationEngineSettings)->displayGameSettings.displayRect;
 
     ce_rect->cx = width + ce_rect->x;
@@ -248,7 +310,7 @@ void CreationEngineRendererModule::SetWindowSize(int width, int height)
 
     int nWidth  = rect.right - rect.left;
     int nHeight = rect.bottom - rect.top;
-    spdlog::info("Setting window size to {} {}", nWidth, nHeight);
+    spdlog::debug("Setting window size to {} {}", nWidth, nHeight);
     SetWindowPos(hWnd, nullptr, 0, 0, nWidth, nHeight, SWP_ASYNCWINDOWPOS);
 }
 
