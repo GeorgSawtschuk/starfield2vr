@@ -107,7 +107,7 @@ __int64 CreationEngineRendererModule::onRenderGraphRenderStart(RE::CreationRende
     return result;
 }
 
-bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pastBuffer[4])
+bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pastBuffer[2])
 {
     if (source == nullptr) {
         return false;
@@ -121,8 +121,6 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
             }
             pastBuffer[0].Reset();
             pastBuffer[1].Reset();
-            pastBuffer[2].Reset();
-            pastBuffer[3].Reset();
         }
     }
     auto device = g_framework->get_d3d12_hook()->get_device();
@@ -131,11 +129,11 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
     }
     if (pastBuffer[0] == nullptr || pastBuffer[1] == nullptr) {
         D3D12_HEAP_PROPERTIES heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 2; i++) {
             if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                       IID_PPV_ARGS(pastBuffer[i].GetAddressOf()))))
+                                                       IID_PPV_ARGS(pastBuffer[i].ReleaseAndGetAddressOf()))))
             {
-                spdlog::error("[VR] Failed to create resource copy copy for AFR backbuffer {}.", i);
+                spdlog::error("[VR] Failed to create resource copy for AFR backbuffer {}.", i);
                 return false;
             }
         }
@@ -432,7 +430,8 @@ uintptr_t CreationEngineRendererModule::setReflexMarkerInternal(uintptr_t rcx, u
          */
         sync_marker_started = false;
     } else if(frames_since_reset > 100 && marker > 1 && marker < 5 && sync_marker_started && vr->get_runtime()->loaded) {
-        spdlog::info("Detected frame inconsistency, resetting frame sync m={}", marker);
+        spdlog::warn("Detected frame inconsistency, resetting frame sync m={} fc[engine={},render={},presenter={}] renderLoop={} sinceReset={}", marker, vr->m_engine_frame_count,
+                     vr->m_render_frame_count, vr->m_presenter_frame_count, GameFlow::renderLoopFrameCount(), frames_since_reset);
         vr->m_skip_next_present = true;
         frames_since_reset = 0;
         sync_marker_started = false;

@@ -189,11 +189,12 @@ private:
     std::mutex                            m_last_resolution_mutex{};
     std::chrono::steady_clock::time_point m_last_resolution_sync{};
 
-    ComPtr<ID3D12Resource> m_pastBuffer[12][4];
+    // SwapBuffer only ever addresses slots (fc-1)&1 and fc&1, so two history slots per target suffice
+    ComPtr<ID3D12Resource> m_pastBuffer[12][2];
 
     static uintptr_t onTaaPass(RE::CreationRendererPrivate::RenderPass* pPass, RE::CreationRendererPrivate::RenderGraphData* i, RE::CreationRendererPrivate::RenderPassData* i1);
     void             RenderGraphStart(RE::CreationRendererPrivate::RenderGraph* pGraph, RE::CreationRendererPrivate::RenderGraphData* pRenderGraphData, bool before);
-    static bool      ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pPtr[4]);
+    static bool      ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pPtr[2]);
     void             logMemoryUsage(const char* reason);
     static uintptr_t setReflexMarkerInternal(uintptr_t rcx, uint32_t marker, uint32_t oldFrameIndex);
 };
