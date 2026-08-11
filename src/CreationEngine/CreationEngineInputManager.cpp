@@ -6,6 +6,7 @@
 
 #include "CreationEngineInputManager.h"
 #include <CreationEngine/memory/offsets.h>
+#include <CreationEngine/models/ModSettingsStore.h>
 #include <REL/Relocation.h>
 #include <mods/VR.hpp>
 
@@ -82,14 +83,41 @@ void CreationEngineInputManager::UpdateDeviceState() {
     if(!connected) {
         return;
     }
-    XUSB_REPORT report = {0};
     static auto vr = VR::get();
 
     if (!vr->is_hmd_active()) {
         return;
     }
+
+    // The engine polls the gamepad device several times per rendered frame, and far more
+    // aggressively while an input-capture screen is open (e.g. key rebinding in Settings, which
+    // busy-polls waiting for a press). update_action_states() issues an OpenXR xrSyncActions and
+    // vigem_target_x360_update() a synchronous driver IOCTL; both are meant to run once per frame.
+    // Running them per poll lets the menu's high-frequency polling throttle the render loop to
+    // ~10 fps. Limit the expensive sync to the first poll of each rendered frame — with a time
+    // fallback so input keeps flowing when the render frame counter stalls (loading screens, hangs).
+    static int      lastSyncedFrame  = -1;
+    static uint32_t pollsThisFrame   = 0;
+    static uint32_t maxPollsPerFrame = 0;
+    static int64_t  lastSyncTick     = 0;
+    LARGE_INTEGER   now, tickFreq;
+    QueryPerformanceCounter(&now);
+    QueryPerformanceFrequency(&tickFreq);
+    auto fc = GameFlow::renderLoopFrameCount();
+    if (fc == lastSyncedFrame && (now.QuadPart - lastSyncTick) * 1000 < 10 * tickFreq.QuadPart) {
+        ++pollsThisFrame;
+        return;
+    }
+    lastSyncTick = now.QuadPart;
+    if (pollsThisFrame > maxPollsPerFrame) {
+        maxPollsPerFrame = pollsThisFrame;
+        spdlog::info("[INPUT] gamepad polls/frame peaked at {} (redundant OpenXR/ViGEm syncs now skipped)", pollsThisFrame);
+    }
+    lastSyncedFrame = fc;
+    pollsThisFrame  = 1;
+
+    XUSB_REPORT report = {0};
     vr->update_action_states();
-//    spdlog::info("Updating input state fc[{}]", vr->m_frame_count);
 
     uint32_t retval;
     vr->on_xinput_get_state(&retval, 0, (XINPUT_STATE*)&report);
