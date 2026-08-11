@@ -35,10 +35,11 @@ private:
     const ModToggle::Ptr m_decoupled_pitch{ ModToggle::create(generate_name("DecoupledPitch"), false) };
     const ModToggle::Ptr m_pawn_control_rotation{ ModToggle::create(generate_name("PawnControlRotation"), true) };
     const ModToggle::Ptr m_taa_anf_nvidia_fix{ ModToggle::create(generate_name("NvidiaDlssAndTaaFix"), true) };
+    const ModToggle::Ptr m_scaleform_viewport_hook{ ModToggle::create(generate_name("ScaleformViewportHook"), true) };
     const ModSlider::Ptr m_hud_scale{ModSlider::create(generate_name("HUDScale"), 0.1, 1.0, 0.4) };
     const ModSlider::Ptr m_hud_perspective{ ModSlider::create(generate_name("HUDPerspective"), 0, 600, 150) };
     const ModToggle::Ptr m_alternative_joy_layout{ ModToggle::create(generate_name("JoyAlternativeLayout"), false) };
 
 
-    ValueList m_options{*m_dominant_eye, *m_head_tracking_multiplier, *m_head_tracking_type, *m_taa_anf_nvidia_fix, *m_disable_zoom, *m_hud_scale, *m_hud_perspective, *m_alternative_joy_layout, *m_decoupled_pitch, *m_pawn_control_rotation };
+    ValueList m_options{*m_dominant_eye, *m_head_tracking_multiplier, *m_head_tracking_type, *m_taa_anf_nvidia_fix, *m_scaleform_viewport_hook, *m_disable_zoom, *m_hud_scale, *m_hud_perspective, *m_alternative_joy_layout, *m_decoupled_pitch, *m_pawn_control_rotation };
 };

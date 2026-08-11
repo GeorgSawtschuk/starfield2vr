@@ -185,6 +185,13 @@ CreationEngineCameraManager::onScaleformSetViewPortInternal(uintptr_t *thisMovie
         return;
     }
 
+    // Isolation test for the recurring Scaleform render crashes: skip only the viewport rect WRITE below
+    // (the part suspected of racing with the game's own use of this struct). Menu-state tracking above
+    // (renderMenu/getMenuSettings, needed for isShowingMenu()/head-tracking/quad-display) always runs.
+    if (!GameFlow::gStore.internalSettings.scaleformViewportHook) {
+        return;
+    }
+
     auto width_multiplier = settings.hud_scale;
     auto height_multiplier = settings.hud_scale;
 

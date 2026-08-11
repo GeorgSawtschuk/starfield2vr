@@ -9,7 +9,6 @@ namespace GameFlow
 {
     struct DebugData {
         std::vector<glm::vec3> points{};
-        std::vector<std::string_view> ui_parts{};
     };
 
     struct Settings
@@ -22,6 +21,7 @@ namespace GameFlow
             int headAimingAbsolute{1};
             float flatScreenDistance{1.5f};
             bool nvidiaAndTAAfix{true};
+            bool scaleformViewportHook{true};
             bool preventZoom{false};
             bool alternativeJoyLayout{false};
             bool decoupledPitch{false};

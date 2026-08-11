@@ -17,7 +17,6 @@ namespace GameFlow
     };
 
     void resetGameState() {
-        gStore.debugData.ui_parts.clear();
         gState.uiData.modulino++;
         gState.uiData.rendered_menus_count[gState.uiData.modulino % 2] = 0;
     }
@@ -81,7 +80,9 @@ namespace GameFlow
             break;
 
         }
-        gStore.debugData.ui_parts.push_back(menuNameHash);
+        // No shared-state writes beyond the double-buffered counter here: this runs concurrently on
+        // Scaleform render worker threads while resetGameState()/on_draw_ui run on other threads. A
+        // debug ui_parts vector previously push_back'd here raced their clear()/reads -> heap corruption.
     }
 
     MenuSettings getMenuSettings(std::string_view menuUrl) {

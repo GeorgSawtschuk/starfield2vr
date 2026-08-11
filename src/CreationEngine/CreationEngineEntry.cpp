@@ -61,13 +61,13 @@ void CreationEngineEntry::on_draw_ui()
     {
         GameFlow::gStore.internalSettings.nvidiaAndTAAfix = m_taa_anf_nvidia_fix->value();
     }
+    if(m_scaleform_viewport_hook->draw("Scaleform Viewport Rect Write (off = crash isolation test; HUD/menu size+offset reverts to centered, VR mode/head-tracking unaffected)"))
+    {
+        GameFlow::gStore.internalSettings.scaleformViewportHook = m_scaleform_viewport_hook->value();
+        spdlog::info("[SCALEFORM] viewport rect write {}", m_scaleform_viewport_hook->value() ? "enabled" : "SKIPPED (isolation test)");
+    }
     if(m_disable_zoom->draw("Prevent Game controlled Zooming")) {
         GameFlow::gStore.internalSettings.preventZoom = m_disable_zoom->value();
-    }
-
-    for(auto& ui_part : GameFlow::gStore.debugData.ui_parts)
-    {
-        ImGui::Text("UI: %s", ui_part.data());
     }
 #if 0
     if(0){
@@ -198,6 +198,10 @@ void CreationEngineEntry::on_config_load(const utility::Config& cfg, bool set_de
     ModConstants::headTrackingMultiplier = m_head_tracking_multiplier->value();
     ModConstants::headTrackingType = m_head_tracking_type->value();
     GameFlow::gStore.internalSettings.nvidiaAndTAAfix = m_taa_anf_nvidia_fix->value();
+    GameFlow::gStore.internalSettings.scaleformViewportHook = m_scaleform_viewport_hook->value();
+    if (!m_scaleform_viewport_hook->value()) {
+        spdlog::info("[SCALEFORM] viewport rect write SKIPPED via config (isolation test)");
+    }
     GameFlow::gStore.internalSettings.pawnControl = m_pawn_control_rotation->value();
     GameFlow::gStore.internalSettings.preventZoom = m_disable_zoom->value();
     GameFlow::gStore.hudSettings.hudScale = m_hud_scale->value();
