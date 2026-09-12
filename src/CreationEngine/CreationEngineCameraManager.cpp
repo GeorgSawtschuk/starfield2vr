@@ -36,7 +36,28 @@ namespace {
     }
     float yaw_offset{0.0f};
 
-
+    // Third-person skeletons don't expose bone names anywhere in the sdk-lite headers, so this
+    // does a generic name search rather than relying on a specific offset. Depth-capped in case
+    // of an unexpected cyclic/oversized graph; entries beyond m_size can still hold stale non-null
+    // pointers in these arrays elsewhere in the codebase, so every child is null-checked.
+    RE::NiAVObject* findChildByNameContains(RE::NiAVObject* node, std::string_view needle, int depth) {
+        if (!node || depth > 48) {
+            return nullptr;
+        }
+        if (node->name.contains(needle)) {
+            return node;
+        }
+        auto asNode = node->GetAsNiNode();
+        if (!asNode) {
+            return nullptr;
+        }
+        for (uint16_t i = 0; i < asNode->children.m_arrayBufLen; i++) {
+            if (auto found = findChildByNameContains(asNode->children.entries[i], needle, depth + 1)) {
+                return found;
+            }
+        }
+        return nullptr;
+    }
 }
 
 
@@ -277,12 +298,125 @@ float CreationEngineCameraManager::get_head_tracking_multiplier() const {
 }
 
 
+namespace {
+    // Diagnostic only: logs every time PlayerCamera::currentState changes, naming it against every
+    // known state pointer on the struct. Needed because sitting down doesn't visibly react to either
+    // seated-camera mode -- this tells us which state (if any of the ones we check) the engine
+    // actually assigns, so the pFurnitureCameraState/pFlightCameraState guess in
+    // GameFlow::isInSeatedThirdPerson can be corrected instead of guessed again.
+    void logCameraStateChangeIfNeeded(RE::PlayerCamera* playerCamera) {
+        static uintptr_t lastState = 0;
+        auto current = (uintptr_t) playerCamera->currentState;
+        if (current == lastState) {
+            return;
+        }
+        lastState = current;
+
+        struct NamedState { const char* name; uintptr_t addr; };
+        NamedState known[] = {
+            { "FirstPerson", (uintptr_t) playerCamera->pFirstPersonModeState },
+            { "Vanity", (uintptr_t) playerCamera->pVanityState },
+            { "VATS", (uintptr_t) playerCamera->pVatsCameraState },
+            { "IronSight", (uintptr_t) playerCamera->pIronSightState },
+            { "PCTransition", (uintptr_t) playerCamera->pPlayerCameraTransitionState },
+            { "TweenMenu", (uintptr_t) playerCamera->pTweenMenuCameraState },
+            { "Slot6(pThirdPersonState/kUnk06?)", (uintptr_t) playerCamera->pThirdPersonState },
+            { "Vehicle", (uintptr_t) playerCamera->pVehicleCameraState },
+            { "Flight", (uintptr_t) playerCamera->pFlightCameraState },
+            { "ShipFar", (uintptr_t) playerCamera->pShipFarCameraState },
+            { "ShipAction", (uintptr_t) playerCamera->pShipActionCameraState },
+            { "ShipTargeting", (uintptr_t) playerCamera->pShipTargetingCameraState },
+            { "ShipCombatOrbit", (uintptr_t) playerCamera->pShipCameraOrbitState },
+            { "FreeWalk", (uintptr_t) playerCamera->pFreeWalkCameraState },
+            { "FreeAdvanced", (uintptr_t) playerCamera->pFreeAdvancedCameraState },
+            { "FreeFly", (uintptr_t) playerCamera->pFreeFlyCameraState },
+            { "FreeTethered", (uintptr_t) playerCamera->pFreeTetheredCameraState },
+            { "Dialogue", (uintptr_t) playerCamera->pDialogueCameraSTate },
+            { "WorkshopIso", (uintptr_t) playerCamera->pWorkshopIsoCameraState },
+            { "PhotoMode", (uintptr_t) playerCamera->pPhotoModeCameraState },
+            { "Slot20(pThirdPersonState2/realThirdPerson?)", (uintptr_t) playerCamera->pThirdPersonState2 },
+            { "Furniture", (uintptr_t) playerCamera->pFurnitureCameraState },
+            { "Horse", (uintptr_t) playerCamera->pHorseCameraState },
+            { "Bleedout", (uintptr_t) playerCamera->pBleedoutCameraState },
+        };
+
+        const char* matched = "UNKNOWN";
+        for (auto& s : known) {
+            if (s.addr != 0 && s.addr == current) {
+                matched = s.name;
+                break;
+            }
+        }
+        spdlog::info("[SeatedCam] currentState={:#x} matched={} seatedCameraMode={}", current, matched, GameFlow::gStore.internalSettings.seatedCameraMode);
+    }
+
+    void logSeatedHeadBoneIfNeeded(RE::NiAVObject* headBone) {
+        static RE::NiAVObject* lastLogged = nullptr;
+        if (headBone == lastLogged) {
+            return;
+        }
+        lastLogged = headBone;
+        auto p_player = CreationEngineSingletonManager::GetPlayerRef();
+        auto root = p_player ? p_player->Get3D() : nullptr;
+        if (!headBone) {
+            spdlog::info("[SeatedCam] head bone search: root={} ({:#x}) -> no match", root ? root->name.c_str() : "null", (uintptr_t) root);
+            return;
+        }
+        spdlog::info("[SeatedCam] head bone search: root={} ({:#x}) -> matched \"{}\" ({:#x}) at world=({:.2f},{:.2f},{:.2f})", root ? root->name.c_str() : "null",
+                     (uintptr_t) root, headBone->name.c_str(), (uintptr_t) headBone, headBone->world.translate.x, headBone->world.translate.y, headBone->world.translate.z);
+    }
+}
+
+void CreationEngineCameraManager::maybeForceFirstPersonCameraState(RE::PlayerCamera* playerCamera) {
+    if (GameFlow::gStore.internalSettings.seatedCameraMode != (int) GameFlow::SeatedCameraMode::kForceFirstPerson) {
+        return;
+    }
+    if (!playerCamera->pFirstPersonModeState || !GameFlow::isInSeatedThirdPerson()) {
+        return;
+    }
+    // DISABLED: confirmed crashy in-game. Raw-swapping currentState skips whatever bookkeeping the
+    // real SetCameraState/ForceFirstPerson engine function normally does on entering FirstPersonState
+    // (player body stayed fully visible, camera sat at standing-pose height while seated, and a
+    // c0000005 access violation followed ~0.8s after leaving a seat this had been applied to -- RIP:0
+    // with RCX pointing directly at the FirstPersonState object this code forced into currentState).
+    // Re-enabling this requires calling the actual engine transition function instead of poking the
+    // pointer directly, which needs a verified signature scan for it -- not done blind without a
+    // disassembler on the live binary. Until then this mode is a no-op distinct from Standard only in
+    // logging, so it can be revisited without silently reintroducing the crash.
+    static uintptr_t lastWarnedState = 0;
+    auto current = (uintptr_t) playerCamera->currentState;
+    if (current != lastWarnedState) {
+        lastWarnedState = current;
+        spdlog::warn("[SeatedCam] ForceFirstPerson is disabled (confirmed crash risk) -- not swapping currentState={:#x}", current);
+    }
+}
+
+RE::NiAVObject* CreationEngineCameraManager::getCachedSeatedHeadBone() {
+    auto p_player = CreationEngineSingletonManager::GetPlayerRef();
+    auto root = p_player ? p_player->Get3D() : nullptr;
+    if (!root) {
+        m_seatedHeadBoneRoot = nullptr;
+        m_seatedHeadBoneCache = nullptr;
+        return nullptr;
+    }
+    if (root != m_seatedHeadBoneRoot) {
+        m_seatedHeadBoneRoot = root;
+        m_seatedHeadBoneCache = findChildByNameContains(root, "Head", 0);
+    }
+    return m_seatedHeadBoneCache;
+}
+
 void CreationEngineCameraManager::UpdateWorldCamera() {
     static auto vr = VR::get();
+    auto playerCamera = CreationEngineSingletonManager::GetPlayerCameraSingleton();
     auto worldCamera = CreationEngineSingletonManager::GetSceneGraphRoot()->worldCamera;
 
     if (!worldCamera) {
         return;
+    }
+
+    if (playerCamera) {
+        logCameraStateChangeIfNeeded(playerCamera);
     }
 
     static auto originalRotation = worldCamera->local.rotate;
@@ -292,6 +426,10 @@ void CreationEngineCameraManager::UpdateWorldCamera() {
         worldCamera->local.rotate = originalRotation;
         worldCamera->local.translate = originalPosition;
         return;
+    }
+
+    if (playerCamera) {
+        maybeForceFirstPersonCameraState(playerCamera);
     }
 
     if(!GameFlow::isImmovable() && !GameFlow::isControlledByAI() && GameFlow::isInFirstPerson()) {
@@ -317,6 +455,19 @@ void CreationEngineCameraManager::UpdateWorldCamera() {
         head_rotation = head_rotation * eye;
         head_rotation = to_havok_space(head_rotation);
         worldCamera->local.rotate = originalRotation * *(RE::NiMatrix3 *) &head_rotation;
+
+        // DISABLED for good: two different world/local conversion attempts for the head-bone anchor
+        // both made things worse in-game (camera circling the ship, then a crash with the camera
+        // thrown across the whole game world). worldCamera->world is likely not a reliable value to
+        // build on at all -- NiCamera keeps its own separate worldToCam matrix for actual rendering,
+        // so the generic NiAVObject world/local pair this code assumed was kept in sync may not be.
+        // Fixing this properly needs a live debugger on the running game, not more blind attempts.
+        // Bone resolution itself was confirmed correct (root "HumanExportRoot" -> "C_Head"); only
+        // logging it below, never applying it to the camera.
+        if (GameFlow::gStore.internalSettings.seatedCameraMode == (int) GameFlow::SeatedCameraMode::kHeadLocked && GameFlow::isInSeatedThirdPerson()) {
+            logSeatedHeadBoneIfNeeded(getCachedSeatedHeadBone());
+        }
+
         worldCamera->local.translate.x = head_rotation[3][0];
         worldCamera->local.translate.y = head_rotation[3][1];
         worldCamera->local.translate.z = head_rotation[3][2];

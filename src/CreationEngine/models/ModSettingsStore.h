@@ -26,6 +26,8 @@ namespace GameFlow
             bool alternativeJoyLayout{false};
             bool decoupledPitch{false};
             bool pawnControl{true};
+            int seatedCameraMode{0}; // GameFlow::SeatedCameraMode: 0=Standard, 1=ForceFirstPerson, 2=HeadLocked
+            bool pauseMenuStereo{true};
         } internalSettings{};
         DebugData debugData{};
     };

@@ -214,8 +214,9 @@ void CreationEngineRendererModule::RenderGraphStart(RE::CreationRendererPrivate:
     auto vr = VR::get();
     if (m_startFramePass == pGraph && before) {
         GameFlow::resetGameState();
-        bool showingMenu                                = GameFlow::isShowingMenu();
-        ModSettings::g_internalSettings.showQuadDisplay = showingMenu;
+        bool showingMenu    = GameFlow::isShowingMenu();
+        bool pauseMenuQuadOverride = GameFlow::isShowingPauseMenu() && GameFlow::gStore.internalSettings.pauseMenuStereo;
+        ModSettings::g_internalSettings.showQuadDisplay = showingMenu && !pauseMenuQuadOverride;
 
         static bool prevShowingMenu = false;
         if (showingMenu != prevShowingMenu) {

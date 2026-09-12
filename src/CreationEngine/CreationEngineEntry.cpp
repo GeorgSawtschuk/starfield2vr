@@ -69,6 +69,14 @@ void CreationEngineEntry::on_draw_ui()
     if(m_disable_zoom->draw("Prevent Game controlled Zooming")) {
         GameFlow::gStore.internalSettings.preventZoom = m_disable_zoom->value();
     }
+    if(m_seated_camera_mode->draw("Seated Camera (Standard = vanilla behavior; Force First Person = DISABLED, confirmed to crash the game; Head-Locked = DISABLED, confirmed to crash the game, diagnostic logging only)"))
+    {
+        GameFlow::gStore.internalSettings.seatedCameraMode = m_seated_camera_mode->value();
+    }
+    if(m_pause_menu_stereo->draw("Pause Menu Stereo (on = render Pause menu in stereo, works around a black-screen bug on current SteamVR; off = legacy flat quad, same as other menus)"))
+    {
+        GameFlow::gStore.internalSettings.pauseMenuStereo = m_pause_menu_stereo->value();
+    }
 #if 0
     if(0){
         auto player = CreationEngineSingletonManager::GetPlayerRef();
@@ -208,6 +216,8 @@ void CreationEngineEntry::on_config_load(const utility::Config& cfg, bool set_de
     GameFlow::gStore.hudSettings.perspective = (int) m_hud_perspective->value();
     GameFlow::gStore.internalSettings.alternativeJoyLayout = m_alternative_joy_layout->value();
     GameFlow::gStore.internalSettings.decoupledPitch = m_decoupled_pitch->value();
+    GameFlow::gStore.internalSettings.seatedCameraMode = m_seated_camera_mode->value();
+    GameFlow::gStore.internalSettings.pauseMenuStereo = m_pause_menu_stereo->value();
 }
 
 void CreationEngineEntry::on_config_save(utility::Config& cfg)

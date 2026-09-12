@@ -16,6 +16,8 @@ struct Matrix6x4f
 namespace RE
 {
     struct NiUpdateData;
+    class PlayerCamera;
+    class NiAVObject;
 }
 
 namespace CreationEngine
@@ -133,4 +135,9 @@ private:
     std::unordered_map<uintptr_t, RE::NiMatrix3> originalRotations{};
     float                                        m_fov_adjust{ 0.0f };
     [[nodiscard]] float                          get_head_tracking_multiplier() const;
+
+    static void        maybeForceFirstPersonCameraState(RE::PlayerCamera* playerCamera);
+    RE::NiAVObject*     getCachedSeatedHeadBone();
+    RE::NiAVObject*     m_seatedHeadBoneRoot{};
+    RE::NiAVObject*     m_seatedHeadBoneCache{};
 };

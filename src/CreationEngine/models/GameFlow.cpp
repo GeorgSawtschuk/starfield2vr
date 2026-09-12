@@ -19,6 +19,7 @@ namespace GameFlow
     void resetGameState() {
         gState.uiData.modulino++;
         gState.uiData.rendered_menus_count[gState.uiData.modulino % 2] = 0;
+        gState.uiData.pause_menu_flag[gState.uiData.modulino % 2]      = 0;
     }
 
     void renderMenu(std::string_view menuNameHash) {
@@ -68,13 +69,16 @@ namespace GameFlow
         case "Interface/InventoryMenu_LRG.swf"_DJB:
         case "Interface/LoadingMenu.swf"_DJB:
         case "Interface/LoadingMenu_LRG.swf"_DJB:
-        case "Interface/PauseMenu.swf"_DJB:
-        case "Interface/PauseMenu_LRG.swf"_DJB:
         case "Interface/GalaxyStarMapMenu.swf"_DJB:
         case "Interface/GalaxyStarMapMenu_LRG.swf"_DJB:
         case "Interface/StarMapMenu.swf"_DJB:
         case "Interface/StarMapMenu_LRG.swf"_DJB:
             gState.uiData.rendered_menus_count[gState.uiData.modulino % 2]++;
+            break;
+        case "Interface/PauseMenu.swf"_DJB:
+        case "Interface/PauseMenu_LRG.swf"_DJB:
+            gState.uiData.rendered_menus_count[gState.uiData.modulino % 2]++;
+            gState.uiData.pause_menu_flag[gState.uiData.modulino % 2] = 1;
             break;
         default:
             break;
@@ -104,6 +108,10 @@ namespace GameFlow
         return gState.uiData.rendered_menus_count[(gState.uiData.modulino + 1) % 2] >= 0;
     }
 
+    bool isShowingPauseMenu() {
+        return gState.uiData.pause_menu_flag[(gState.uiData.modulino + 1) % 2] != 0;
+    }
+
     bool isAimingDownSights() {
         auto p_player = CreationEngineSingletonManager::GetPlayerRef();
         return p_player && p_player->IsInIronSights();
@@ -129,5 +137,20 @@ namespace GameFlow
     bool isInFirstPerson() {
         auto p_camera = CreationEngineSingletonManager::GetPlayerCameraSingleton();
         return p_camera && p_camera->IsInFirstPerson();
+    }
+
+    bool isInSeatedThirdPerson() {
+        auto p_camera = CreationEngineSingletonManager::GetPlayerCameraSingleton();
+        if (!p_camera || !p_camera->currentState) {
+            return false;
+        }
+        // [SeatedCam] diagnostic logging confirmed sitting on a chair actually routes through the
+        // field sdk-lite names pThirdPersonState (despite that field sitting at the enum slot for
+        // kUnk06, not kThirdPerson -- see CreationEngineCameraManager.cpp's logCameraStateChangeIfNeeded).
+        // pFurnitureCameraState never matched in that test. pFlightCameraState (ship pilot seat) is
+        // still unverified -- kept as a candidate until confirmed in-game.
+        return (uintptr_t) p_camera->currentState == (uintptr_t) p_camera->pThirdPersonState ||
+               (uintptr_t) p_camera->currentState == (uintptr_t) p_camera->pFurnitureCameraState ||
+               (uintptr_t) p_camera->currentState == (uintptr_t) p_camera->pFlightCameraState;
     }
 }

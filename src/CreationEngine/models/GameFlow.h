@@ -2,6 +2,13 @@
 #include "glm/glm.hpp"
 
 namespace GameFlow {
+    enum class SeatedCameraMode : int
+    {
+        kStandard         = 0,
+        kForceFirstPerson = 1,
+        kHeadLocked        = 2,
+    };
+
     struct MenuSettings
     {
         float hud_scale;
@@ -17,6 +24,7 @@ namespace GameFlow {
         } debugWeaponData{};
         struct UiData {
             int rendered_menus_count[2]{};
+            int pause_menu_flag[2]{};
             int modulino{0};
         } uiData{};
 
@@ -31,11 +39,13 @@ namespace GameFlow {
     void renderMenu(std::string_view menuNameHash);
     MenuSettings getMenuSettings(std::string_view menuNameHash);
     bool isShowingMenu();
+    bool isShowingPauseMenu();
     bool isAimingDownSights();
     bool isWeaponDrawn();
     bool isImmovable();
     bool isControlledByAI();
     bool isInFirstPerson();
+    bool isInSeatedThirdPerson();
     void resetGameState();
 }
 
